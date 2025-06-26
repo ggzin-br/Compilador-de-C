@@ -4,17 +4,9 @@
 #include <stdio.h> 
 #include <stdlib.h>
 #include <string.h>
-
-
-/* BEGIN - LAB 2 ---------------------------------*/
 #include <stdbool.h>
 
-struct pos {
-    int line;
-    int col;
-    const char* filename;
-};
-
+/* DEFINES */
 #define S_EQ(str, str2) \
         (str && str2 && (strcmp(str, str2) == 0))
 
@@ -65,6 +57,16 @@ enum {
     case ')':   \
     case ']'
 
+#define TOTAL_OPERADOR_GROUPS 14
+#define MAX_OPERATORS_IN_GROUP 12
+/* END DEFINES */
+
+/* ENUMS */
+enum{
+    COMPILER_FILE_COMPILED_OK,
+    COMPILER_FAILED_WITH_ERRORS
+};
+
 enum {
     TOKEN_TYPE_KEYWORD ,
     TOKEN_TYPE_IDENTIFIER ,
@@ -76,102 +78,11 @@ enum {
     TOKEN_TYPE_NEWLINE
 };
 
-struct token{ 
-    int type;
-    int flags;
-
-    struct pos pos; //Identificar onde o token esta no arquivo.
-
-    union {
-        char cval;
-        const char *sval;
-        unsigned int inum;
-        unsigned long lnum;
-        unsigned long long llnum;
-        void* any;
-
-    };
-    // Sera 'true' se tiver um espaço entre um token e o próximo token.
-    bool whitespace;
-
-    // Retira a string que estiver dentro de parênteses. Ex: (1+2+3) resulta em 1+2+3.
-    const char* between_brackets;
+enum {
+    NODE_FLAG_INSIDE_EXPRESSION = 0b00000001
 };
 
-struct lex_process;
 
-// Definicao de ponteiros para funcoes.
-typedef char (*LEX_PROCESS_NEXT_CHAR) (struct lex_process* process);            
-typedef char (*LEX_PROCESS_PEEK_CHAR) (struct lex_process* process);            
-typedef void (*LEX_PROCESS_PUSH_CHAR) (struct lex_process* process, char c);
-
-struct lex_process_functions {
-    LEX_PROCESS_NEXT_CHAR next_char;
-    LEX_PROCESS_PEEK_CHAR peek_char;
-    LEX_PROCESS_PUSH_CHAR push_char;
-};
-
-struct lex_process {
-    struct pos pos;
-    struct vector* token_vec;
-    struct compile_process* compiler;
-
-    
-    int current_expression_count; //Qts parenteses existem no momento.
-
-    struct buffer* parentheses_buffer;
-    struct lex_process_functions* function;
-
-    void* private; //Dados privados que o lexer nao entende mas o programador entende.
-};
-
-// Funcoes do arquivo cprocess.c
-char compile_process_next_char(struct lex_process* lex_process);
-char compile_process_peek_char(struct lex_process* lex_process);
-void compile_process_push_char(struct lex_process* lex_process, char c);
-
-// Funcoes do arquivo lex_process.c
-struct lex_process* lex_process_create(struct compile_process* compiler, struct lex_process_functions* functions, void *private);
-void lex_process_free(struct lex_process* process);
-void* lex_process_private(struct lex_process* process);
-struct vector* lex_process_tokens(struct lex_process* process);
-
-// Funcoes do arquivo lexer.c
-int lex(struct lex_process* process);
-
-// Funcoes do arquivo compiler.c
-void compiler_error(struct compile_process* compiler, const char* msg, ...);
-void compiler_warning(struct compile_process* compiler, const char* msg, ...);
-
-
-/* END - LAB 2 ---------------------------------*/
-
-enum{
-    COMPILER_FILE_COMPILED_OK,
-    COMPILER_FAILED_WITH_ERRORS
-};
-
-struct compile_process {
-    // Como o arquivo deve ser compilado
-    int flags;
-
-    /* LAB2: Adicionar*/
-    struct pos pos;
-
-    struct compile_process_input_file{
-        FILE* fp;
-        const char* abs_path;
-    } cfile;
-
-    
-    struct vector* token_vec;       /* LAB3: Vetor de tokens da análise léxica*/
-    struct vector* node_vec;        /* LAB3: Vetor de nodes da análise sintatica*/
-    struct vector* node_tree_vec;   /* LAB3: Raiz da arvore de analise*/
-
-    FILE* ofile;
-};
-
-/* BEGIN - LAB 3 ---------------------------------*/
 enum {
     NODE_TYPE_EXPRESSION,
     NODE_TYPE_EXPRESSION_PARENTHESES,
@@ -210,6 +121,88 @@ enum {
     PARSE_GENERAL_ERROR
 };
 
+enum {
+    ASSOCIATIVITY_LEFT_TO_RIGTH,
+    ASSOCIATIVITY_RIGHT_TO_LEFT
+};
+/* END ENUMS */
+
+/* TYPEDEFS */
+struct lex_process;
+// Definicao de ponteiros para funcoes.
+typedef char (*LEX_PROCESS_NEXT_CHAR) (struct lex_process* process);            
+typedef char (*LEX_PROCESS_PEEK_CHAR) (struct lex_process* process);            
+typedef void (*LEX_PROCESS_PUSH_CHAR) (struct lex_process* process, char c);
+/* END TYPEDEFS */
+
+/* STRUCTS */
+struct pos {
+    int line;
+    int col;
+    const char* filename;
+};
+
+struct compile_process {
+    // Como o arquivo deve ser compilado
+    int flags;
+
+    /* LAB2: Adicionar*/
+    struct pos pos;
+
+    struct compile_process_input_file{
+        FILE* fp;
+        const char* abs_path;
+    } cfile;
+
+    
+    struct vector* token_vec;       /* LAB3: Vetor de tokens da análise léxica*/
+    struct vector* node_vec;        /* LAB3: Vetor de nodes da análise sintatica*/
+    struct vector* node_tree_vec;   /* LAB3: Raiz da arvore de analise*/
+
+    FILE* ofile;
+};
+
+struct token { 
+    int type;
+    int flags;
+
+    struct pos pos; //Identificar onde o token esta no arquivo.
+
+    union {
+        char cval;
+        const char *sval;
+        unsigned int inum;
+        unsigned long lnum;
+        unsigned long long llnum;
+        void* any;
+
+    };
+    // Sera 'true' se tiver um espaço entre um token e o próximo token.
+    bool whitespace;
+
+    // Retira a string que estiver dentro de parênteses. Ex: (1+2+3) resulta em 1+2+3.
+    const char* between_brackets;
+};
+struct lex_process_functions {
+    LEX_PROCESS_NEXT_CHAR next_char;
+    LEX_PROCESS_PEEK_CHAR peek_char;
+    LEX_PROCESS_PUSH_CHAR push_char;
+};
+
+struct lex_process {
+    struct pos pos;
+    struct vector* token_vec;
+    struct compile_process* compiler;
+
+    
+    int current_expression_count; //Qts parenteses existem no momento.
+
+    struct buffer* parentheses_buffer;
+    struct lex_process_functions* function;
+
+    void* private; //Dados privados que o lexer nao entende mas o programador entende.
+};
+
 // Cada nó uma parte do inputfile. 
 struct node {
     int type;
@@ -233,20 +226,68 @@ struct node {
         unsigned long long llnum;
         void* any;
     };
+
+    union {
+        struct exp {
+            struct node* left;
+            struct node* right;
+            const char* op;
+        } exp;
+        // Types cannot be declared in an anonymous union
+        // No clang ocorre este aviso... Posso ignorá-lo por enquanto
+    };
 };
 
-/* END - LAB 3 ---------------------------------*/
+struct expressionable_op_precedence_group {
+    char* operators[MAX_OPERATORS_IN_GROUP];
+    int associativity;
+};
+/* END STRUCTS */
+
+/* DECLARAÇÕES DE FUNÇÕES */
+// Funcoes do arquivo cprocess.c
+char compile_process_next_char(struct lex_process* lex_process);
+char compile_process_peek_char(struct lex_process* lex_process);
+void compile_process_push_char(struct lex_process* lex_process, char c);
+
+// Funcoes do arquivo lex_process.c
+struct lex_process* lex_process_create(struct compile_process* compiler, struct lex_process_functions* functions, void *private);
+void lex_process_free(struct lex_process* process);
+void* lex_process_private(struct lex_process* process);
+struct vector* lex_process_tokens(struct lex_process* process);
+
+// Funcoes do arquivo lexer.c
+int lex(struct lex_process* process);
+
+// Funcoes do arquivo compiler.c
+void compiler_error(struct compile_process* compiler, const char* msg, ...);
+void compiler_warning(struct compile_process* compiler, const char* msg, ...);
+
+/* FUNCOES DO ARQUIVO PARSER.C */
+int parse(struct compile_process* process);
+
+/* FUNCOES DO ARQUIVO TOKEN.C */
+bool token_is_keyword(struct token* token, const char* value);
+bool token_is_symbol(struct token* token, const char value);
+bool discart_token(struct token* token);
+
+/* FUNCOES DO ARQUIVO NODE.C */
+void node_set_vector(struct vector* vec, struct vector* root_vec);
+void node_push(struct node* node);
+struct node* node_peek_or_null();
+struct node* node_peek();
+struct node* node_pop();
+struct node* node_peek_expressionable_or_null();
+bool node_is_expressionable(struct node* node);
+void make_exp_node(struct node* node_left, struct node* node_right, const char* op);
+struct node* node_create(struct node* _node);
+/* END DECLARAÇÕES DE FUNÇÕES */
 
 int compile_file(const char* filename, const char* out_finename, int flags);
 struct compile_process* compile_process_create(const char* filename, const char* filename_out, int flags);
-
-
-bool token_is_keyword(struct token* token, const char* value);
-
 /* Build token for the input string*/
 struct lex_process* tokens_build_for_string(struct compile_process* compiler, const char* str);
 
-int parse(struct compile_process* process);             /*LAB3: Adicionar*/
 #endif
 
 
