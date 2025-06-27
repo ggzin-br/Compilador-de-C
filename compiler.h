@@ -1,295 +1,440 @@
 #ifndef COMPILER_H
 #define COMPILER_H
 
-#include <stdio.h> 
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <stdbool.h>
 
-/* DEFINES */
+/** DEFINES ****************************************************************************/
 #define S_EQ(str, str2) \
-        (str && str2 && (strcmp(str, str2) == 0))
-
+    (str && str2 && (strcmp(str, str2) == 0))
 
 #define NUMERIC_CASE \
-    case '0':   \
-    case '1':   \
-    case '2':   \
-    case '3':   \
-    case '4':   \
-    case '5':   \
-    case '6':   \
-    case '7':   \
-    case '8':   \
+    case '0':        \
+    case '1':        \
+    case '2':        \
+    case '3':        \
+    case '4':        \
+    case '5':        \
+    case '6':        \
+    case '7':        \
+    case '8':        \
     case '9'
 
-enum {
-    LEXICAL_ANALYSIS_ALL_OK ,
-    LEXICAL_ANALYSIS_INPUT_ERROR
-};
-
 #define OPERATOR_CASE \
-    case '+':   \
-    case '-':   \
-    case '*':   \
-    case '>':   \
-    case '<':   \
-    case '^':   \
-    case '%':   \
-    case '!':   \
-    case '=':   \
-    case '~':   \
-    case '|':   \
-    case '&':   \
-    case '(':   \
-    case '[':   \
-    case ',':   \
-    case '.':   \
-    case '?'   
+    case '+':         \
+    case '-':         \
+    case '*':         \
+    case '>':         \
+    case '<':         \
+    case '^':         \
+    case '%':         \
+    case '!':         \
+    case '=':         \
+    case '~':         \
+    case '|':         \
+    case '&':         \
+    case '(':         \
+    case '[':         \
+    case ',':         \
+    case '.':         \
+    case '?'
 
 #define SYMBOL_CASE \
-    case '{':   \
-    case '}':   \
-    case ':':   \
-    case ';':   \
-    case '#':   \
-    case '\\':  \
-    case ')':   \
+    case '{':       \
+    case '}':       \
+    case ':':       \
+    case ';':       \
+    case '#':       \
+    case '\\':      \
+    case ')':       \
     case ']'
 
 #define TOTAL_OPERADOR_GROUPS 14
 #define MAX_OPERATORS_IN_GROUP 12
-/* END DEFINES */
 
-/* ENUMS */
-enum{
+/** ENUMERATIONS ****************************************************************************/
+enum
+{
+    LEXICAL_ANALYSIS_ALL_OK,
+    LEXICAL_ANALYSIS_INPUT_ERROR
+};
+
+enum
+{
+    TOKEN_TYPE_KEYWORD,
+    TOKEN_TYPE_IDENTIFIER,
+    TOKEN_TYPE_OPERATOR,
+    TOKEN_TYPE_SYMBOL,
+    TOKEN_TYPE_NUMBER,
+    TOKEN_TYPE_STRING,
+    TOKEN_TYPE_COMMENT,
+    TOKEN_TYPE_NEWLINE
+};
+
+enum
+{
     COMPILER_FILE_COMPILED_OK,
     COMPILER_FAILED_WITH_ERRORS
 };
 
-enum {
-    TOKEN_TYPE_KEYWORD ,
-    TOKEN_TYPE_IDENTIFIER ,
-    TOKEN_TYPE_OPERATOR ,
-    TOKEN_TYPE_SYMBOL ,
-    TOKEN_TYPE_NUMBER ,
-    TOKEN_TYPE_STRING ,
-    TOKEN_TYPE_COMMENT ,
-    TOKEN_TYPE_NEWLINE
+enum
+{
+    SYMBOL_TYPE_NODE,
+    SYMBOL_TYPE_NATIVE_FUNCTION,
+    SYMBOL_TYPE_UNKNOWN
 };
 
-enum {
-    NODE_FLAG_INSIDE_EXPRESSION = 0b00000001
-};
-
-
-enum {
+enum
+{
     NODE_TYPE_EXPRESSION,
     NODE_TYPE_EXPRESSION_PARENTHESES,
     NODE_TYPE_NUMBER,
-    NODE_TYPE_IDENTIFIER ,
-    NODE_TYPE_STRING ,
-    NODE_TYPE_VARIABLE ,
-    NODE_TYPE_VARIABLE_LIST ,
-    NODE_TYPE_FUNCTION ,
-    NODE_TYPE_BODY ,
-    NODE_TYPE_STATEMENT_RETURN ,
-    NODE_TYPE_STATEMENT_IF ,
-    NODE_TYPE_STATEMENT_ELSE ,
-    NODE_TYPE_STATEMENT_WHILE ,
-    NODE_TYPE_STATEMENT_DO_WHILE ,
-    NODE_TYPE_STATEMENT_FOR ,
-    NODE_TYPE_STATEMENT_BREAK ,
-    NODE_TYPE_STATEMENT_CONTINUE ,
-    NODE_TYPE_STATEMENT_SWITCH ,
-    NODE_TYPE_STATEMENT_CASE ,
-    NODE_TYPE_STATEMENT_DEFAULT ,
-    NODE_TYPE_STATEMENT_GOTO ,
-    NODE_TYPE_UNARY ,
-    NODE_TYPE_TENARY ,
-    NODE_TYPE_LABEL ,
-    NODE_TYPE_STRUCT ,
-    NODE_TYPE_UNION ,
-    NODE_TYPE_BRACKET ,
-    NODE_TYPE_CAST ,
-    NODE_TYPE_BLANK ,
-
+    NODE_TYPE_IDENTIFIER,
+    NODE_TYPE_STRING,
+    NODE_TYPE_VARIABLE,
+    NODE_TYPE_VARIABLE_LIST,
+    NODE_TYPE_FUNCTION,
+    NODE_TYPE_BODY,
+    NODE_TYPE_STATEMENT_RETURN,
+    NODE_TYPE_STATEMENT_IF,
+    NODE_TYPE_STATEMENT_ELSE,
+    NODE_TYPE_STATEMENT_WHILE,
+    NODE_TYPE_STATEMENT_DO_WHILE,
+    NODE_TYPE_STATEMENT_FOR,
+    NODE_TYPE_STATEMENT_BREAK,
+    NODE_TYPE_STATEMENT_CONTINUE,
+    NODE_TYPE_STATEMENT_SWITCH,
+    NODE_TYPE_STATEMENT_CASE,
+    NODE_TYPE_STATEMENT_DEFAULT,
+    NODE_TYPE_STATEMENT_GOTO,
+    NODE_TYPE_UNARY,
+    NODE_TYPE_TENARY,
+    NODE_TYPE_LABEL,
+    NODE_TYPE_STRUCT,
+    NODE_TYPE_UNION,
+    NODE_TYPE_BRACKET,
+    NODE_TYPE_CAST,
+    NODE_TYPE_BLANK
 };
 
-enum {
+enum
+{
     PARSE_ALL_OK,
     PARSE_GENERAL_ERROR
 };
 
-enum {
+enum
+{
+    NODE_FLAG_INSIDE_EXPRESSION = 0b00000001
+};
+
+enum
+{
     ASSOCIATIVITY_LEFT_TO_RIGTH,
     ASSOCIATIVITY_RIGHT_TO_LEFT
 };
-/* END ENUMS */
 
-/* TYPEDEFS */
-struct lex_process;
-// Definicao de ponteiros para funcoes.
-typedef char (*LEX_PROCESS_NEXT_CHAR) (struct lex_process* process);            
-typedef char (*LEX_PROCESS_PEEK_CHAR) (struct lex_process* process);            
-typedef void (*LEX_PROCESS_PUSH_CHAR) (struct lex_process* process, char c);
-/* END TYPEDEFS */
-
-/* STRUCTS */
-struct pos {
-    int line;
-    int col;
-    const char* filename;
+enum
+{
+    DATATYPE_FLAG_IS_SIGNED = 0b00000001,
+    DATATYPE_FLAG_IS_STATIC = 0b00000010,
+    DATATYPE_FLAG_IS_CONST = 0b00000100,
+    DATATYPE_FLAG_IS_POINTER = 0b00001000,
+    DATATYPE_FLAG_IS_ARRAY = 0b00010000,
+    DATATYPE_FLAG_IS_EXTERN = 0b00100000,
+    DATATYPE_FLAG_IS_RESTRICT = 0b01000000,
+    DATATYPE_FLAG_IS_IGNORE_TYPE_CHECKING = 0b10000000,
+    DATATYPE_FLAG_IS_SECONDARY = 0b100000000,
+    DATATYPE_FLAG_IS_STRUCT_UNION_NO_NAME = 0b1000000000,
+    DATATYPE_FLAG_IS_LETERAL = 0b10000000000
 };
 
-struct compile_process {
+enum
+{
+    DATATYPE_VOID,
+    DATATYPE_CHAR,
+    DATATYPE_SHORT,
+    DATATYPE_INTEGER,
+    DATATYPE_LONG,
+    DATATYPE_FLOAT,
+    DATATYPE_DOUBLE,
+    DATATYPE_STRUCT,
+    DATATYPE_UNION,
+    DATATYPE_UNKNOWN
+};
+
+enum
+{
+    DATATYPE_EXPECT_PRIMITIVE,
+    DATATYPE_EXPECT_UNION,
+    DATATYPE_EXPECT_STRUCT
+};
+
+/** STRUCTS ****************************************************************************/
+struct pos
+{
+    int line;
+    int col;
+    const char *filename;
+};
+
+struct token
+{
+    int type;
+    int flags;
+
+    struct pos pos; // Identificar onde o token esta no arquivo.
+
+    union
+    {
+        char cval;
+        const char *sval;
+        unsigned int inum;
+        unsigned long lnum;
+        unsigned long long llnum;
+        void *any;
+    };
+    // Sera 'true' se tiver um espaço entre um token e o próximo token.
+    bool whitespace;
+
+    // Retira a string que estiver dentro de parênteses. Ex: (1+2+3) resulta em 1+2+3.
+    const char *between_brackets;
+};
+
+struct lex_process;
+
+// Definicao de ponteiros para funcoes.
+typedef char (*LEX_PROCESS_NEXT_CHAR)(struct lex_process *process);
+typedef char (*LEX_PROCESS_PEEK_CHAR)(struct lex_process *process);
+typedef void (*LEX_PROCESS_PUSH_CHAR)(struct lex_process *process, char c);
+
+struct lex_process_functions
+{
+    LEX_PROCESS_NEXT_CHAR next_char;
+    LEX_PROCESS_PEEK_CHAR peek_char;
+    LEX_PROCESS_PUSH_CHAR push_char;
+};
+
+struct lex_process
+{
+    struct pos pos;
+    struct vector *token_vec;
+    struct compile_process *compiler;
+
+    int current_expression_count; // Qts parenteses existem no momento.
+
+    struct buffer *parentheses_buffer;
+    struct lex_process_functions *function;
+
+    void *private; // Dados privados que o lexer nao entende mas o programador entende.
+};
+
+struct symbol
+{
+    const char *name;
+    int type;
+    void *data;
+};
+
+struct scope
+{
+    int flags;
+
+    // void*
+    struct vector *entities;
+
+    // Quantidade total de bytes do escopo.
+    size_t size;
+
+    // NULL se nao tiver pai.
+    struct scope *parent;
+};
+
+struct compile_process
+{
     // Como o arquivo deve ser compilado
     int flags;
 
     /* LAB2: Adicionar*/
     struct pos pos;
 
-    struct compile_process_input_file{
-        FILE* fp;
-        const char* abs_path;
+    struct compile_process_input_file
+    {
+        FILE *fp;
+        const char *abs_path;
     } cfile;
 
-    
-    struct vector* token_vec;       /* LAB3: Vetor de tokens da análise léxica*/
-    struct vector* node_vec;        /* LAB3: Vetor de nodes da análise sintatica*/
-    struct vector* node_tree_vec;   /* LAB3: Raiz da arvore de analise*/
+    struct vector *token_vec;     /* LAB3: Vetor de tokens da análise léxica*/
+    struct vector *node_vec;      /* LAB3: Vetor de nodes da análise sintatica*/
+    struct vector *node_tree_vec; /* LAB3: Raiz da arvore de analise*/
 
-    FILE* ofile;
+    FILE *ofile;
+
+    struct
+    {
+        struct scope *root;
+        struct scope *current;
+    } scope;
+
+    struct
+    {
+        // Current active symbol table. struct symbol*
+        struct vector *table;
+        // struct vector* multiple symbol tables stored in here..
+        struct vector *tables;
+    } symbols;
 };
 
-struct token { 
-    int type;
+struct expressionable_op_precedence_group
+{
+    char *operators[MAX_OPERATORS_IN_GROUP];
+    int associativity;
+};
+
+struct datatype
+{ // LAB5
     int flags;
 
-    struct pos pos; //Identificar onde o token esta no arquivo.
+    // EX: long, int, float, etc.
+    int type;
+    const char *type_str;
 
-    union {
-        char cval;
-        const char *sval;
-        unsigned int inum;
-        unsigned long lnum;
-        unsigned long long llnum;
-        void* any;
+    // EX: long int, sendo int o secundário.
+    struct datatype *datatype_secondary;
 
+    // Tamanho do datatype. EX: long tem 8 bytes.
+    size_t size;
+
+    // Quantidades de ponteiros alinhados. Ex: int** a, pointer_depth == 2.
+    int pointer_depth;
+
+    union
+    {
+        struct node *struct_node;
+        struct node *union_node;
     };
-    // Sera 'true' se tiver um espaço entre um token e o próximo token.
-    bool whitespace;
-
-    // Retira a string que estiver dentro de parênteses. Ex: (1+2+3) resulta em 1+2+3.
-    const char* between_brackets;
-};
-struct lex_process_functions {
-    LEX_PROCESS_NEXT_CHAR next_char;
-    LEX_PROCESS_PEEK_CHAR peek_char;
-    LEX_PROCESS_PUSH_CHAR push_char;
 };
 
-struct lex_process {
-    struct pos pos;
-    struct vector* token_vec;
-    struct compile_process* compiler;
-
-    
-    int current_expression_count; //Qts parenteses existem no momento.
-
-    struct buffer* parentheses_buffer;
-    struct lex_process_functions* function;
-
-    void* private; //Dados privados que o lexer nao entende mas o programador entende.
-};
-
-// Cada nó uma parte do inputfile. 
-struct node {
+struct node
+{
     int type;
     int flags;
     struct pos pos;
 
-    struct node_binded {
+    struct node_binded
+    {
         // Ponteiro para o body node.
-        struct node* owner;
+        struct node *owner;
 
-        // Ponteiro para a funcao que o no esta.
-        struct node* funtion;
+        // Ponteiro para a funcao que o node esta.
+        struct node *funtion;
     } binded;
 
     // Estrutura similar ao token
-    union {
+    union
+    {
         char cval;
         const char *sval;
         unsigned int inum;
         unsigned long lnum;
         unsigned long long llnum;
-        void* any;
+        void *any;
     };
 
-    union {
-        struct exp {
-            struct node* left;
-            struct node* right;
-            const char* op;
+    union
+    {
+        struct exp
+        {
+            struct node *left;
+            struct node *right;
+            const char *op;
         } exp;
-        // Types cannot be declared in an anonymous union
-        // No clang ocorre este aviso... Posso ignorá-lo por enquanto
+
+        struct var
+        {
+            struct datatype type;
+            const char *name;
+            struct node *val;
+        } var;
     };
 };
 
-struct expressionable_op_precedence_group {
-    char* operators[MAX_OPERATORS_IN_GROUP];
-    int associativity;
-};
-/* END STRUCTS */
+/** PROTOTIPOS DE FUNCOES ****************************************************************************/
 
-/* DECLARAÇÕES DE FUNÇÕES */
-// Funcoes do arquivo cprocess.c
-char compile_process_next_char(struct lex_process* lex_process);
-char compile_process_peek_char(struct lex_process* lex_process);
-void compile_process_push_char(struct lex_process* lex_process, char c);
+/* FUNCOES DO ARQUIVO CPROCESS.C */
+char compile_process_next_char(struct lex_process *lex_process);
+char compile_process_peek_char(struct lex_process *lex_process);
+void compile_process_push_char(struct lex_process *lex_process, char c);
 
-// Funcoes do arquivo lex_process.c
-struct lex_process* lex_process_create(struct compile_process* compiler, struct lex_process_functions* functions, void *private);
-void lex_process_free(struct lex_process* process);
-void* lex_process_private(struct lex_process* process);
-struct vector* lex_process_tokens(struct lex_process* process);
+/* FUNCOES DO ARQUIVO LEX_PROCESS.C */
+struct lex_process *lex_process_create(struct compile_process *compiler, struct lex_process_functions *functions, void *private);
+void lex_process_free(struct lex_process *process);
+void *lex_process_private(struct lex_process *process);
+struct vector *lex_process_tokens(struct lex_process *process);
 
-// Funcoes do arquivo lexer.c
-int lex(struct lex_process* process);
+/* FUNCOES DO ARQUIVO LEXER.C */
+int lex(struct lex_process *process);
 
-// Funcoes do arquivo compiler.c
-void compiler_error(struct compile_process* compiler, const char* msg, ...);
-void compiler_warning(struct compile_process* compiler, const char* msg, ...);
+/* FUNCOES DO ARQUIVO COMPILER.C */
+int compile_file(const char *filename, const char *out_finename, int flags);
+struct compile_process *compile_process_create(const char *filename, const char *filename_out, int flags);
+void compiler_error(struct compile_process *compiler, const char *msg, ...);
+void compiler_warning(struct compile_process *compiler, const char *msg, ...);
+
+/* CONTROI UM TOKEN A PARTIR DE UMA STRING */
+struct lex_process *tokens_build_for_string(struct compile_process *compiler, const char *str);
 
 /* FUNCOES DO ARQUIVO PARSER.C */
-int parse(struct compile_process* process);
+int parse(struct compile_process *process);
 
 /* FUNCOES DO ARQUIVO TOKEN.C */
-bool token_is_keyword(struct token* token, const char* value);
-bool token_is_symbol(struct token* token, const char value);
-bool discart_token(struct token* token);
+bool token_is_keyword(struct token *token, const char *value);
+bool token_is_symbol(struct token *token, const char value);
+bool discart_token(struct token *token);
+bool token_is_operator(struct token *token, const char *val);
 
 /* FUNCOES DO ARQUIVO NODE.C */
-void node_set_vector(struct vector* vec, struct vector* root_vec);
-void node_push(struct node* node);
-struct node* node_peek_or_null();
-struct node* node_peek();
-struct node* node_pop();
-struct node* node_peek_expressionable_or_null();
-bool node_is_expressionable(struct node* node);
-void make_exp_node(struct node* node_left, struct node* node_right, const char* op);
-struct node* node_create(struct node* _node);
-/* END DECLARAÇÕES DE FUNÇÕES */
+void node_set_vector(struct vector *vec, struct vector *root_vec);
+void node_push(struct node *node);
+struct node *node_peek_or_null();
+struct node *node_peek();
+struct node *node_pop();
+struct node *node_peek_expressionable_or_null();
+bool node_is_expressionable(struct node *node);
+void make_exp_node(struct node *node_left, struct node *node_right, const char *op);
+struct node *node_create(struct node *_node);
 
-int compile_file(const char* filename, const char* out_finename, int flags);
-struct compile_process* compile_process_create(const char* filename, const char* filename_out, int flags);
-/* Build token for the input string*/
-struct lex_process* tokens_build_for_string(struct compile_process* compiler, const char* str);
+/* FUNCOES DO ARQUIVO SCOPE.C */
+struct scope *scope_alloc();
+void scope_dealloc(struct scope *scope);
+struct scope *scope_create_root(struct compile_process *process);
+void scope_free_root(struct compile_process *process);
+struct scope *scope_new(struct compile_process *process, int flags);
+void scope_iteration_start(struct scope *scope);
+void scope_iteration_end(struct scope *scope);
+void *scope_iterate_back(struct scope *scope);
+void *scope_last_entity_at_scope(struct scope *scope);
+void *scope_last_entity_from_scope_stop_at(struct scope *scope, struct scope *stop_scope);
+void *scope_last_entity_stop_at(struct compile_process *process, struct scope *stop_scope);
+void *scope_last_entity(struct compile_process *process);
+void scope_push(struct compile_process *process, void *ptr, size_t elem_size);
+void scope_finish(struct compile_process *process);
+struct scope *scope_current(struct compile_process *process);
+
+/* FUNCOES DO ARQUIVO SYMRESOLVER.C */
+void symresolver_initialize(struct compile_process *process);
+void symresolver_new_table(struct compile_process *process);
+void symresolver_end_table(struct compile_process *process);
+struct symbol *symresolver_get_symbol(struct compile_process *process, const char *name);
+struct symbol *symresolver_get_symbol_for_native_function(struct compile_process *process, const char *name);
+struct symbol *symresolver_register_symbol(struct compile_process *process, const char *sym_name, int type, void *data);
+struct node *symresolver_node(struct symbol *sym);
+void symresolver_build_for_variable_node(struct compile_process *process, struct node *node);
+void symresolver_build_for_function_node(struct compile_process *process, struct node *node);
+void symresolver_build_for_structure_node(struct compile_process *process, struct node *node);
+void symresolver_build_for_union_node(struct compile_process *process, struct node *node);
+void symresolver_build_for_node(struct compile_process *process, struct node *node);
 
 #endif
-
-
-
-
