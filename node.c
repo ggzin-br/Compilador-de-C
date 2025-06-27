@@ -27,11 +27,7 @@ struct node* node_peek() {
 
 struct node* node_pop() {
     struct node* last_node = vector_back_ptr(node_vector);
-    struct node* last_node_root = NULL;
-
-    if (!vector_empty(node_vector_root)) { // Correção temporária para o root_vector vazio
-        last_node_root = vector_back_ptr(node_vector_root);
-    }
+    struct node *last_node_root = vector_empty(node_vector) ? NULL : vector_back_ptr_or_null(node_vector_root);
 
     vector_pop(node_vector);
 
