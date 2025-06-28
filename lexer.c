@@ -586,7 +586,7 @@ struct token *read_next_token()
 
     switch (c)
     {
-    case EOF: /* */
+    case EOF:
         break;
     NUMERIC_CASE:
         token = token_make_number();
@@ -618,7 +618,7 @@ struct token *read_next_token()
         token = read_special_token();
         if (!token)
             compiler_error(lex_process->compiler, "Token invalido!\n");
-            
+
         break;
     }
     return token;
@@ -644,8 +644,6 @@ int lex(struct lex_process *process)
 
     return LEXICAL_ANALYSIS_ALL_OK;
 }
-
-/* END - LAB 2 ---------------------------------*/
 
 char lexer_string_buffer_next_char(struct lex_process *process)
 {

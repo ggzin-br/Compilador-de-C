@@ -315,6 +315,8 @@ struct datatype
         struct node *struct_node;
         struct node *union_node;
     };
+
+    struct vector* array_brackets;
 };
 
 struct node
@@ -358,6 +360,36 @@ struct node
             const char *name;
             struct node *val;
         } var;
+        struct var_list {
+            struct vector* list;
+        } var_list;
+
+        struct _struct {
+            const char* name;
+            struct node* body_n;
+        } _struct;
+
+        struct func {
+            const char* name;
+            struct node* body_n;
+            struct datatype rtype;
+            struct vector* args;
+        } func;
+        
+        struct body {
+            struct vector* statements;
+            size_t size;
+        } body;
+
+        struct if_stmt {
+            struct node* cond_node;
+            struct node* body_node;
+            struct node* next; // para else if
+        } if_stmt;
+
+        struct ret_stmt {
+            struct node* exp_node;
+        } ret_stmt;
     };
 };
 

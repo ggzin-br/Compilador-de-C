@@ -179,6 +179,37 @@ void parse_single_token_to_node()
     }
 }
 
+static bool token_next_is_operator(const char* op) {
+    struct token* token = token_peek_next();
+    return token_is_operator(token, op);
+}
+
+void make_variable_node(struct datatype* dtype, struct token* name_token, struct node* value_node) {
+    const char* name_str = name_token ? name_token->sval : NULL;
+    node_create(&(struct node){.type = NODE_TYPE_VARIABLE, .var.name = name_str, .var.type = *dtype, .var.val = value_node});
+}
+
+void make_variable_node_and_register(struct history* history, struct datatype* dtype, struct token* name_token, struct node* value_node) {
+    make_variable_node(dtype, name_token, value_node);
+    struct node* var_node = node_pop();
+    symresolver_build_for_node(current_process, var_node);
+    node_push(var_node);
+}
+
+static void expect_op(const char* op) {
+    struct token* next_token = token_next();
+    if (!next_token || next_token->type != TOKEN_TYPE_OPERATOR || !S_EQ(next_token->sval, op)) {
+        compiler_error(current_process, "Esperado o operador %s, mas foi fornecido", op);
+    }
+}
+
+static void expect_sym(char c) {
+    struct token* next_token = token_next();
+    if (!next_token || next_token->type != TOKEN_TYPE_SYMBOL || next_token->cval != c) {
+        compiler_error(current_process, "Esperado o simbolo %c, mas outra coisa foi fornecida", c);
+    }
+}
+
 // Essa funcao trata o caso de 2 datatypes seguidos. Ex: long int A.
 void parser_get_datatype_tokens(struct token **datatype_token, struct token **datatype_secundary_token)
 {
@@ -217,6 +248,153 @@ int parser_get_pointer_depth()
         token_next();
     }
     return depth;
+}
+
+void parse_identifier(struct history *history)
+{
+    assert(token_peek_next()->type == NODE_TYPE_IDENTIFIER);
+    parse_single_token_to_node();
+}
+
+void parser_node_shift_children_left(struct node *node)
+{
+    assert(node->type == NODE_TYPE_EXPRESSION);
+    assert(node->exp.right->type == NODE_TYPE_EXPRESSION);
+
+    const char *right_op = node->exp.right->exp.op;
+    struct node *new_exp_left_node = node->exp.left;
+    struct node *new_exp_right_node = node->exp.right->exp.left;
+    make_exp_node(new_exp_left_node, new_exp_right_node, node->exp.op);
+
+    // EX: 50*E(20+50) -> E(50*20)+50
+    struct node *new_left_operand = node_pop();
+    struct node *new_right_operand = node->exp.right->exp.right;
+    node->exp.left = new_left_operand;
+    node->exp.right = new_right_operand;
+    node->exp.op = right_op;
+}
+
+void parser_reorder_expression(struct node **node_out)
+{
+    struct node *node = *node_out;
+
+    // Se o node nao for do tipo expressao, finalizar.
+    if (node->type != NODE_TYPE_EXPRESSION)
+        return;
+
+    // Se o node nao tiver filhos que sejam expressoes, finalizar.
+    if (node->exp.left->type != NODE_TYPE_EXPRESSION &&
+        node->exp.right &&
+        node->exp.right->type != NODE_TYPE_EXPRESSION)
+        return;
+
+    if (node->exp.left->type != NODE_TYPE_EXPRESSION && node->exp.right && node->exp.right->type == NODE_TYPE_EXPRESSION)
+    {
+        const char *op = node->exp.right->exp.op;
+        const char *right_op = node->exp.right->exp.op;
+
+        if (parser_left_op_has_priority(node->exp.op, right_op))
+        {
+
+            // EX: 50*E(20+50) -> E(50*20)+50
+            parser_node_shift_children_left(node);
+
+            // Reordenar a arvore depois do shift ser realizado.
+            parser_reorder_expression(&node->exp.left);
+            parser_reorder_expression(&node->exp.right);
+        }
+    }
+}
+
+void parse_expressionable_for_op(struct history *history, const char *op)
+{
+    parse_expressionable(history);
+}
+
+void parse_exp_normal(struct history *history)
+{
+    struct token *op_token = token_peek_next();
+    char *op = (char *)op_token->sval;
+    struct node *node_left = node_peek_expressionable_or_null();
+
+    if (!node_left)
+        return;
+
+    // Retira da lista de tokens o token de operador. Ex: "123+456", retira o token "+".
+    token_next();
+
+    // Retira da lista de nodes, o ultimo node inserido.
+    node_pop();
+
+    node_left->flags |= NODE_FLAG_INSIDE_EXPRESSION;
+
+    // Nesse momento, temos o node da esquerda e o operador. Essa funcao ira criar o node da direita.
+    parse_expressionable_for_op(history_down(history, history->flags), op);
+    struct node *node_right = node_pop();
+    node_right->flags |= NODE_FLAG_INSIDE_EXPRESSION;
+
+    // Cria o node de expressao, passando o node da esquerda, node da direita e operador.
+    make_exp_node(node_left, node_right, op);
+    struct node *exp_node = node_pop();
+
+    parser_reorder_expression(&exp_node);
+
+    node_push(exp_node);
+}
+
+int parse_exp(struct history *history)
+{
+    parse_exp_normal(history);
+    return 0;
+}
+
+int parse_expressionable_single(struct history *history)
+{
+    struct token *token = token_peek_next();
+
+    if (!token)
+        return -1;
+
+    history->flags |= NODE_FLAG_INSIDE_EXPRESSION;
+    int res = -1;
+    switch (token->type)
+    {
+    case TOKEN_TYPE_NUMBER:
+        parse_single_token_to_node();
+        res = 0;
+        break;
+    case TOKEN_TYPE_IDENTIFIER:
+        res = 0;
+        parse_identifier(history);
+        break;
+    case TOKEN_TYPE_OPERATOR:
+        parse_exp(history);
+        res = 0;
+        break;
+    case TOKEN_TYPE_KEYWORD:
+        parse_keyword(history);
+        res = 0;
+        break;
+    default:
+        break;
+    }
+    return res;
+}
+
+void parse_expressionable(struct history *history)
+{
+    while (parse_expressionable_single(history) == 0)
+    {
+    }
+}
+
+void parse_expressionable_root(struct history* history) {
+    parse_expressionable(history);
+    struct node* result_node = node_peek_or_null();
+    if (result_node) {
+        result_node = node_pop();
+        node_push(result_node);
+    }
 }
 
 void parser_datatype_adjust_size_for_secondary(struct datatype *datatype, struct token *datatype_secondary_token)
@@ -355,7 +533,7 @@ void parse_datatype_type(struct datatype *dtype)
 }
 
 void parse_datatype(struct datatype *dtype)
-{ 
+{
     memset(dtype, 0, sizeof(struct datatype));
     // Flag padrao.
     dtype->flags |= DATATYPE_FLAG_IS_SIGNED;
@@ -365,20 +543,182 @@ void parse_datatype(struct datatype *dtype)
     parse_datatype_modifiers(dtype);
 }
 
-void parse_variable_function_or_struct_union(struct history *history)
-{ 
-    struct datatype dtype;
-    parse_datatype(&dtype);
+void parse_array_brackets(struct history* history, struct datatype* dtype) {
+    if (!dtype->array_brackets) {
+        dtype->array_brackets = vector_create(sizeof(struct node*));
+    }
+    while (token_next_is_operator("[")) {
+        expect_op("[");
+        parse_expressionable_root(history);
+        struct node* bracket_node = node_pop();
+        node_create(&(struct node){.type = NODE_TYPE_BRACKET, .exp.left = bracket_node});
+        struct node* final_bracket_node = node_pop();
+        vector_push(dtype->array_brackets, &final_bracket_node);
+        expect_op("]");
+    }
 }
 
-void parse_identifier(struct history *history)
+void parse_variable(struct datatype* dtype, struct token* name_token, struct history* history) {
+    dtype->array_brackets = NULL;
+    if (token_next_is_operator("[")) {
+        parse_array_brackets(history, dtype);
+    }
+    struct node* value_node = NULL;
+    if (token_next_is_operator("=")) {
+        token_next();
+        parse_expressionable_root(history);
+        value_node = node_pop();
+    }
+    make_variable_node_and_register(history, dtype, name_token, value_node);
+}
+
+void parse_statement(struct history* history);
+
+void parse_body(struct history* history) {
+    expect_sym('{');
+    struct vector* statements = vector_create(sizeof(struct node*));
+    scope_new(current_process, 0);
+    while (token_peek_next()->type != TOKEN_TYPE_SYMBOL || token_peek_next()->cval != '}') {
+        parse_statement(history);
+        struct node* stmt_node = node_pop();
+        vector_push(statements, &stmt_node);
+    }
+    expect_sym('}');
+    scope_finish(current_process);
+    node_create(&(struct node){.type=NODE_TYPE_BODY, .body.statements=statements});
+}
+
+void parse_struct_body(struct history* history) {
+    expect_sym('{');
+    struct vector* statements = vector_create(sizeof(struct node*));
+    scope_new(current_process, 0);
+    while (token_peek_next()->type != TOKEN_TYPE_SYMBOL || token_peek_next()->cval != '}') {
+        parse_variable_function_or_struct_union(history);
+        struct node* stmt_node = node_pop();
+        vector_push(statements, &stmt_node);
+    }
+    expect_sym('}');
+    scope_finish(current_process);
+    node_create(&(struct node){.type=NODE_TYPE_BODY, .body.statements=statements});
+}
+
+void parse_struct(struct datatype* dtype, struct token* name_token, struct history* history) {
+    node_create(&(struct node){.type=NODE_TYPE_STRUCT, ._struct.name=name_token->sval});
+    struct node* struct_node = node_pop();
+    symresolver_build_for_node(current_process, struct_node);
+    
+    parse_struct_body(history);
+    struct_node->_struct.body_n = node_pop();
+    
+    node_push(struct_node);
+    expect_sym(';');
+}
+
+void parse_function(struct datatype* dtype, struct token* name_token, struct history* history) {
+    expect_sym(')');
+    parse_body(history);
+    struct node* body_node = node_pop();
+    
+    node_create(&(struct node){
+        .type=NODE_TYPE_FUNCTION, 
+        .func.name=name_token->sval, 
+        .func.rtype=*dtype,
+        .func.body_n=body_node
+    });
+
+    struct node* func_node = node_pop();
+    symresolver_build_for_node(current_process, func_node);
+    node_push(func_node);
+}
+
+void parse_if_statement(struct history* history) {
+    expect_op("(");
+    parse_expressionable_root(history);
+    struct node* cond_node = node_pop();
+    expect_sym(')');
+
+    parse_body(history);
+    struct node* body_node = node_pop();
+
+    node_create(&(struct node){.type=NODE_TYPE_STATEMENT_IF, .if_stmt.cond_node=cond_node, .if_stmt.body_node=body_node});
+}
+
+void parse_return_statement(struct history* history) {
+    struct node* exp_node = NULL;
+
+    if (token_peek_next()->cval != ';') {
+        parse_expressionable_root(history);
+        exp_node = node_pop();
+    }
+
+    expect_sym(';');
+    node_create(&(struct node){.type=NODE_TYPE_STATEMENT_RETURN, .ret_stmt.exp_node=exp_node});
+}
+
+
+void parse_statement(struct history* history) {
+    struct token* token = token_peek_next();
+    if (token_is_keyword(token, "if")) {
+        token_next();
+        parse_if_statement(history);
+        return;
+    }
+    if (token_is_keyword(token, "return")) {
+        token_next();
+        parse_return_statement(history);
+        return;
+    }
+    
+    parse_variable_function_or_struct_union(history);
+}
+
+void parse_variable_function_or_struct_union(struct history *history) // Analisar se funciona mesmo
 {
-    assert(token_peek_next()->type == NODE_TYPE_IDENTIFIER);
-    parse_single_token_to_node();
+    struct datatype dtype;
+    parse_datatype(&dtype);
+
+    if (dtype.flags & DATATYPE_FLAG_IS_STRUCT_UNION_NO_NAME) {
+        parse_struct(&dtype, parser_build_random_type_name(), history);
+        return;
+    }
+
+    struct token* name_token = token_next();
+    if (name_token->type != TOKEN_TYPE_IDENTIFIER) {
+        compiler_error(current_process, "Declaracao invalida, nome esperado.\n");
+    }
+
+    if (token_peek_next()->type == TOKEN_TYPE_SYMBOL && token_peek_next()->cval == '(') {
+        token_next();
+        parse_function(&dtype, name_token, history);
+        return;
+    }
+    
+    if (dtype.type == DATATYPE_STRUCT && token_peek_next()->cval == '{') {
+        parse_struct(&dtype, name_token, history);
+        return;
+    }
+    
+    parse_variable(&dtype, name_token, history);
+
+    if (token_is_operator(token_peek_next(), ",")) {
+        struct vector* var_list = vector_create(sizeof(struct node*));
+        struct node* var_node = node_pop();
+        vector_push(var_list, &var_node);
+        while (token_is_operator(token_peek_next(), ",")) {
+            token_next();
+            name_token = token_next();
+            parse_variable(&dtype, name_token, history);
+            var_node = node_pop();
+            vector_push(var_list, &var_node);
+        }
+        node_create(&(struct node){.type = NODE_TYPE_VARIABLE_LIST, .var_list.list = var_list});
+    }
+
+    expect_sym(';');
 }
 
 void parse_keyword(struct history *history)
-{ 
+{
     struct token *token = token_peek_next();
 
     if (is_keyword_variable_modifier(token->sval) || keyword_is_datatype(token->sval))
@@ -386,11 +726,6 @@ void parse_keyword(struct history *history)
         parse_variable_function_or_struct_union(history);
         return;
     }
-}
-
-void parse_expressionable_for_op(struct history *history, const char *op)
-{
-    parse_expressionable(history);
 }
 
 static int parser_get_precedence_for_operator(const char *op, struct expressionable_op_precedence_group **group_out)
@@ -430,133 +765,6 @@ static bool parser_left_op_has_priority(const char *op_left, const char *op_righ
     return precedence_left <= precedence_right;
 }
 
-void parser_node_shift_children_left(struct node *node)
-{
-    assert(node->type == NODE_TYPE_EXPRESSION);
-    assert(node->exp.right == NODE_TYPE_EXPRESSION);
-
-    const char *right_op = node->exp.right->exp.op;
-    struct node *new_exp_left_node = node->exp.left;
-    struct node *new_exp_right_node = node->exp.right->exp.left;
-    make_exp_node(new_exp_left_node, new_exp_right_node, node->exp.op);
-
-    // EX: 50*E(20+50) -> E(50*20)+50
-    struct node *new_left_operand = node_pop();
-    struct node *new_right_operand = node->exp.right->exp.right;
-    node->exp.left = new_left_operand;
-    node->exp.right = new_right_operand;
-    node->exp.op = right_op;
-}
-
-void parser_reorder_expression(struct node **node_out)
-{
-    struct node *node = *node_out;
-
-    // Se o node nao for do tipo expressao, finalizar.
-    if (node->type != NODE_TYPE_EXPRESSION)
-        return;
-
-    // Se o node nao tiver filhos que sejam expressoes, finalizar.
-    if (node->exp.left->type != NODE_TYPE_EXPRESSION &&
-        node->exp.right &&
-        node->exp.right->type != NODE_TYPE_EXPRESSION)
-        return;
-
-    if (node->exp.left->type != NODE_TYPE_EXPRESSION && node->exp.right && node->exp.right->type == NODE_TYPE_EXPRESSION)
-    {
-        const char *op = node->exp.right->exp.op;
-        const char *right_op = node->exp.right->exp.op;
-
-        if (parser_left_op_has_priority(node->exp.op, right_op))
-        {
-
-            // EX: 50*E(20+50) -> E(50*20)+50
-            parser_node_shift_children_left(node);
-
-            // Reordenar a arvore depois do shift ser realizado.
-            parser_reorder_expression(&node->exp.left);
-            parser_reorder_expression(&node->exp.right);
-        }
-    }
-}
-
-void parse_exp_normal(struct history *history)
-{
-    struct token *op_token = token_peek_next();
-    char *op = (char *)op_token->sval;
-    struct node *node_left = node_peek_expressionable_or_null();
-
-    if (!node_left)
-        return;
-
-    // Retira da lista de tokens o token de operador. Ex: "123+456", retira o token "+".
-    token_next();
-
-    // Retira da lista de nodes, o ultimo node inserido.
-    node_pop();
-
-    node_left->flags |= NODE_FLAG_INSIDE_EXPRESSION;
-
-    // Nesse momento, temos o node da esquerda e o operador. Essa funcao ira criar o node da direita.
-    parse_expressionable_for_op(history_down(history, history->flags), op);
-    struct node *node_right = node_pop();
-    node_right->flags |= NODE_FLAG_INSIDE_EXPRESSION;
-
-    // Cria o node de expressao, passando o node da esquerda, node da direita e operador.
-    make_exp_node(node_left, node_right, op);
-    struct node *exp_node = node_pop();
-
-    parser_reorder_expression(&exp_node);
-
-    node_push(exp_node);
-}
-
-int parse_exp(struct history *history)
-{
-    parse_exp_normal(history);
-    return 0;
-}
-
-int parse_expressionable_single(struct history *history)
-{
-    struct token *token = token_peek_next();
-
-    if (!token)
-        return -1;
-
-    history->flags |= NODE_FLAG_INSIDE_EXPRESSION;
-    int res = -1;
-    switch (token->type)
-    {
-    case TOKEN_TYPE_NUMBER:
-        parse_single_token_to_node();
-        res = 0;
-        break;
-    case TOKEN_TYPE_IDENTIFIER: 
-        res = 0;
-        parse_identifier(history);
-        break;
-    case TOKEN_TYPE_OPERATOR:
-        parse_exp(history);
-        res = 0;
-        break;
-    case TOKEN_TYPE_KEYWORD: 
-        parse_keyword(history);
-        res = 0;
-        break;
-    default:
-        break;
-    }
-    return res;
-}
-
-void parse_expressionable(struct history *history)
-{
-    while (parse_expressionable_single(history) == 0)
-    {
-    }
-}
-
 void parse_keyword_for_global()
 {
     parse_keyword(history_begin(0));
@@ -587,6 +795,19 @@ int parse_next()
     return 0;
 }
 
+void print_node_tree(struct node *node, int level)
+{
+    if (node != NULL)
+    {
+        for (int i = 0; i < level; i++)
+            printf("\t");
+        printf("(NODE - LEVEL: %d)\t(OP: %s)\t(VAL: %llu)\n", level, node->exp.op != NULL ? node->exp.op : "N/A", node->llnum);
+        int next_level = level + 1;
+        print_node_tree(node->exp.left, next_level);
+        print_node_tree(node->exp.right, next_level);
+    }
+}
+
 int parse(struct compile_process *process)
 {
     current_process = process;
@@ -604,5 +825,13 @@ int parse(struct compile_process *process)
         if (node)
             vector_push(process->node_tree_vec, &node);
     }
+
+    // Impressão da árvore sintática (AST)
+    for (int i = 0; i < vector_count(process->node_tree_vec); i++)
+    {
+        struct node *n = *(struct node **)vector_at(process->node_tree_vec, i);
+        print_node_tree(n, 0);
+    }
+
     return PARSE_ALL_OK;
 }
