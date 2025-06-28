@@ -112,9 +112,7 @@ void scope_finish(struct compile_process *process)
     scope_dealloc(process->scope.current);
     process->scope.current = new_current_scope;
     if (process->scope.root && !process->scope.current)
-    {
         process->scope.root = NULL;
-    }
 }
 
 struct scope *scope_current(struct compile_process *process)

@@ -7,8 +7,6 @@
 #include <stdlib.h>
 #include <stdio.h>
 
-// We want at least 20 vector element spaces in reserve before having
-// to reallocate memory again
 #define VECTOR_ELEMENT_INCREMENT 20
 
 enum
@@ -19,8 +17,6 @@ enum
 struct vector
 {
     void* data;
-    // The pointer index is the index that will be read next upon calling "vector_peek".
-    // This index will then be incremented
     int pindex;
     int rindex;
     int mindex;
@@ -28,12 +24,6 @@ struct vector
     int flags;
     size_t esize;
 
-
-    // Vector of struct vector, holds saves of this vector. YOu can save the internal state
-    // at all times with vector_save
-    // Data is not restored and is permenant, save does not respect data, only pointers
-    // and variables are saved. Useful to temporarily push the vector state
-    // and restore it later.
     struct vector* saves;
 };
 

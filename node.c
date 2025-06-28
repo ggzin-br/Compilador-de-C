@@ -7,7 +7,7 @@ struct vector *node_vector = NULL;
 struct vector *node_vector_root = NULL;
 
 void node_set_vector(struct vector *vec, struct vector *root_vec)
-{ // Obrigatório executar isto antes de tudo
+{
     node_vector = vec;
     node_vector_root = root_vec;
 }

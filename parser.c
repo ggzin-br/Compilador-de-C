@@ -39,8 +39,9 @@ void parse_datatype(struct datatype *dtype);
 void parse_variable_function_or_struct_union(struct history *history);
 void parse_keyword(struct history *history);
 /* END PROTÓTIPOS */
+
 static bool keyword_is_datatype(const char *val)
-{ // LAB5
+{
     return S_EQ(val, "void") ||
            S_EQ(val, "char") ||
            S_EQ(val, "int") ||
@@ -53,7 +54,7 @@ static bool keyword_is_datatype(const char *val)
 }
 
 static bool is_keyword_variable_modifier(const char *val)
-{ // LAB5
+{
     return S_EQ(val, "unsigned") ||
            S_EQ(val, "signed") ||
            S_EQ(val, "static") ||
@@ -68,7 +69,7 @@ bool parser_datatype_is_secondary_allowed_for_type(const char *type)
 }
 
 bool token_is_primitive_keyword(struct token *token)
-{ // LAB5
+{
     if (!token)
         return false;
     if (token->type != TOKEN_TYPE_KEYWORD)
@@ -93,7 +94,7 @@ bool token_is_primitive_keyword(struct token *token)
 }
 
 int parser_datatype_expected_for_type_string(const char *str)
-{ // LAB5
+{
     int type = DATATYPE_EXPECT_PRIMITIVE;
 
     if (S_EQ(str, "union"))
@@ -180,7 +181,7 @@ void parse_single_token_to_node()
 
 // Essa funcao trata o caso de 2 datatypes seguidos. Ex: long int A.
 void parser_get_datatype_tokens(struct token **datatype_token, struct token **datatype_secundary_token)
-{ // LAB5
+{
     *datatype_token = token_next();
     struct token *next_token = token_peek_next();
 
@@ -192,7 +193,7 @@ void parser_get_datatype_tokens(struct token **datatype_token, struct token **da
 }
 
 struct token *parser_build_random_type_name()
-{ // LAB5
+{
     char tmp_name[25];
     sprintf(tmp_name, "customtypename_%i", parser_get_random_type_index());
     char *sval = malloc(sizeof(tmp_name));
@@ -206,7 +207,7 @@ struct token *parser_build_random_type_name()
 }
 
 int parser_get_pointer_depth()
-{ // LAB5 (CORRIGIDO)
+{
     int depth = 0;
     struct token *token = NULL;
 
@@ -303,7 +304,7 @@ void parser_datatype_init(struct token *datatype_token, struct token *datatype_s
 }
 
 void parse_datatype_modifiers(struct datatype *dtype)
-{ // LAB5
+{
     struct token *token = token_peek_next();
     while (token && token->type == TOKEN_TYPE_KEYWORD)
     {
@@ -329,7 +330,7 @@ void parse_datatype_modifiers(struct datatype *dtype)
 }
 
 void parse_datatype_type(struct datatype *dtype)
-{ // LAB5
+{
     struct token *datatype_token = NULL;
     struct token *datatype_secundary_token = NULL;
     parser_get_datatype_tokens(&datatype_token, &datatype_secundary_token);
@@ -354,7 +355,7 @@ void parse_datatype_type(struct datatype *dtype)
 }
 
 void parse_datatype(struct datatype *dtype)
-{ // LAB5
+{ 
     memset(dtype, 0, sizeof(struct datatype));
     // Flag padrao.
     dtype->flags |= DATATYPE_FLAG_IS_SIGNED;
@@ -365,19 +366,19 @@ void parse_datatype(struct datatype *dtype)
 }
 
 void parse_variable_function_or_struct_union(struct history *history)
-{ // LAB5
+{ 
     struct datatype dtype;
     parse_datatype(&dtype);
 }
 
 void parse_identifier(struct history *history)
-{ // LAB5
+{
     assert(token_peek_next()->type == NODE_TYPE_IDENTIFIER);
     parse_single_token_to_node();
 }
 
 void parse_keyword(struct history *history)
-{ // LAB 5
+{ 
     struct token *token = token_peek_next();
 
     if (is_keyword_variable_modifier(token->sval) || keyword_is_datatype(token->sval))
@@ -505,8 +506,7 @@ void parse_exp_normal(struct history *history)
     make_exp_node(node_left, node_right, op);
     struct node *exp_node = node_pop();
 
-    // TODO: Inserir AQUI codigo para reordenador a expressao.
-    parser_reorder_expression(&exp_node); // LAB4
+    parser_reorder_expression(&exp_node);
 
     node_push(exp_node);
 }
@@ -532,7 +532,7 @@ int parse_expressionable_single(struct history *history)
         parse_single_token_to_node();
         res = 0;
         break;
-    case TOKEN_TYPE_IDENTIFIER: // LAB5
+    case TOKEN_TYPE_IDENTIFIER: 
         res = 0;
         parse_identifier(history);
         break;
@@ -540,7 +540,7 @@ int parse_expressionable_single(struct history *history)
         parse_exp(history);
         res = 0;
         break;
-    case TOKEN_TYPE_KEYWORD: // LAB5
+    case TOKEN_TYPE_KEYWORD: 
         parse_keyword(history);
         res = 0;
         break;
@@ -588,7 +588,7 @@ int parse_next()
 }
 
 int parse(struct compile_process *process)
-{ /*LAB3: Adicionar o prototipo no compiler.h */
+{
     current_process = process;
     parser_last_token = NULL;
     struct node *node = NULL;
