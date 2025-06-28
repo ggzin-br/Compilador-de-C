@@ -18,7 +18,7 @@ int main(int argc, char const *argv[]) {
     
     printf("#Input file: %s \n#Output file: %s \n\n", input_file, output_file);
 
-    int res = compile_file(input_file, output_file,0);
+    int res = compile_file(input_file, output_file, 0);
     if (res == COMPILER_FILE_COMPILED_OK){
         printf("Todos os arquivos foram compilados com sucesso!\n");
     } else if (res == COMPILER_FAILED_WITH_ERRORS){

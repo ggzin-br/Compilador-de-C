@@ -364,6 +364,8 @@ struct node
 /** PROTOTIPOS DE FUNCOES ****************************************************************************/
 
 /* FUNCOES DO ARQUIVO CPROCESS.C */
+struct compile_process *compile_process_create(const char *filename, const char *filename_out, int flags);
+void compile_process_free(struct compile_process* process);
 char compile_process_next_char(struct lex_process *lex_process);
 char compile_process_peek_char(struct lex_process *lex_process);
 void compile_process_push_char(struct lex_process *lex_process, char c);
