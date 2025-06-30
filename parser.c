@@ -1,6 +1,8 @@
 #include "compiler.h"
 #include "helpers/vector.h"
 #include <assert.h>
+#include <stdlib.h>
+#include <string.h>
 
 static struct compile_process *current_process;
 static struct token *parser_last_token;
@@ -140,9 +142,17 @@ static void parser_ignore_nl_or_comment(struct token *token)
     }
 }
 
+static struct token *token_copy()
+{
+    struct token *token = malloc(sizeof(struct token));
+    memcpy(token, (struct token *)current_process->token_vec, sizeof(struct token));
+
+    return token;
+}
+
 static struct token *token_next()
 {
-    struct token *next_token = vector_peek_no_increment(current_process->token_vec);
+    struct token *next_token = (struct token *)vector_peek_no_increment(current_process->token_vec);
     parser_ignore_nl_or_comment(next_token);
     current_process->pos = next_token->pos; // Atualiza a posicao do arquivo de compilacao.
     parser_last_token = next_token;
@@ -179,38 +189,49 @@ void parse_single_token_to_node()
     }
 }
 
-static bool token_next_is_operator(const char* op) {
-    struct token* token = token_peek_next();
+static bool token_next_is_operator(const char *op)
+{
+    struct token *token = token_peek_next();
     return token_is_operator(token, op);
 }
 
-void make_variable_node(struct datatype* dtype, struct token* name_token, struct node* value_node) {
-    const char* name_str = name_token ? name_token->sval : NULL;
+void make_variable_node(struct datatype *dtype, struct token *name_token, struct node *value_node)
+{
+    const char *name_str = name_token ? name_token->sval : NULL;
     node_create(&(struct node){.type = NODE_TYPE_VARIABLE, .var.name = name_str, .var.type = *dtype, .var.val = value_node});
 }
 
-void make_variable_node_and_register(struct history* history, struct datatype* dtype, struct token* name_token, struct node* value_node) {
+void make_variable_node_and_register(struct history *history, struct datatype *dtype, struct token *name_token, struct node *value_node)
+{
     make_variable_node(dtype, name_token, value_node);
-    struct node* var_node = node_pop();
+    struct node *var_node = node_pop();
     symresolver_build_for_node(current_process, var_node);
     node_push(var_node);
 }
 
-static void expect_op(const char* op) {
-    struct token* next_token = token_next();
-    if (!next_token || next_token->type != TOKEN_TYPE_OPERATOR || !S_EQ(next_token->sval, op)) {
+static void expect_op(const char *op)
+{
+    struct token *next_token = token_next();
+    if (!next_token || next_token->type != TOKEN_TYPE_OPERATOR || !S_EQ(next_token->sval, op))
+    {
         compiler_error(current_process, "Esperado o operador %s, mas foi fornecido", op);
     }
 }
 
-static void expect_sym(char c) {
-    struct token* next_token = token_next();
-    if (!next_token || next_token->type != TOKEN_TYPE_SYMBOL || next_token->cval != c) {
+static void expect_sym(char c)
+{
+    struct token *next_token = token_next();
+    if (!next_token || next_token->type != TOKEN_TYPE_SYMBOL || next_token->cval != c)
+    {
         compiler_error(current_process, "Esperado o simbolo %c, mas outra coisa foi fornecida", c);
     }
 }
 
-// Essa funcao trata o caso de 2 datatypes seguidos. Ex: long int A.
+void parser_get_datatype_tokens_structs_unions(struct token **datatype_token, struct token **datatype_secundary_token)
+{
+    struct token *token_vec_copy = token_copy();
+}
+
 void parser_get_datatype_tokens(struct token **datatype_token, struct token **datatype_secundary_token)
 {
     *datatype_token = token_next();
@@ -388,10 +409,12 @@ void parse_expressionable(struct history *history)
     }
 }
 
-void parse_expressionable_root(struct history* history) {
+void parse_expressionable_root(struct history *history)
+{
     parse_expressionable(history);
-    struct node* result_node = node_peek_or_null();
-    if (result_node) {
+    struct node *result_node = node_peek_or_null();
+    if (result_node)
+    {
         result_node = node_pop();
         node_push(result_node);
     }
@@ -456,6 +479,10 @@ void parser_datatype_init_type_and_size_for_primitive(struct token *datatype_tok
     parser_datatype_adjust_size_for_secondary(datatype_out, datatype_secondary_token);
 }
 
+void parser_datatype_init_type_and_size_struct_union(struct token *datatype_token, struct token *datatype_secondary_token, struct datatype *datatype_out)
+{
+}
+
 void parser_datatype_init_type_and_size(struct token *datatype_token, struct token *datatype_secondary_token, struct datatype *datatype_out, int pointer_depth, int expected_type)
 {
     if (!(expected_type == DATATYPE_EXPECT_PRIMITIVE) && datatype_secondary_token)
@@ -468,7 +495,7 @@ void parser_datatype_init_type_and_size(struct token *datatype_token, struct tok
         break;
     case DATATYPE_EXPECT_STRUCT:
     case DATATYPE_EXPECT_UNION:
-        compiler_error(current_process, "Struct e Unions ainda nao estao implementados!\n");
+        parser_datatype_init_type_and_size_struct_union(datatype_token, datatype_secondary_token, datatype_out);
         break;
     default:
         compiler_error(current_process, "BUG: Erro desconhecido!\n");
@@ -518,14 +545,10 @@ void parse_datatype_type(struct datatype *dtype)
     if (S_EQ(datatype_token->sval, "union") || S_EQ(datatype_token->sval, "struct"))
     {
         // Caso da struct com nome.
-        if (token_peek_next()->type == TOKEN_TYPE_IDENTIFIER)
-            datatype_token = token_next();
+        if (token_peek_next()->type == TOKEN_TYPE_SYMBOL)
+            dtype->flags |= DATATYPE_FLAG_IS_STRUCT_UNION_NO_NAME;
     }
-    else
-    { // Caso da struct sem nome -> gerar nome aleatorio.
-        datatype_token = parser_build_random_type_name();
-        dtype->flags |= DATATYPE_FLAG_IS_STRUCT_UNION_NO_NAME;
-    }
+
     // Descobre a quantidade de ponteiros.
     int pointer_depth = parser_get_pointer_depth();
 
@@ -543,168 +566,200 @@ void parse_datatype(struct datatype *dtype)
     parse_datatype_modifiers(dtype);
 }
 
-void parse_array_brackets(struct history* history, struct datatype* dtype) {
-    if (!dtype->array_brackets) {
-        dtype->array_brackets = vector_create(sizeof(struct node*));
+void parse_array_brackets(struct history *history, struct datatype *dtype)
+{
+    if (!dtype->array_brackets)
+    {
+        dtype->array_brackets = vector_create(sizeof(struct node *));
     }
-    while (token_next_is_operator("[")) {
+    while (token_next_is_operator("["))
+    {
         expect_op("[");
         parse_expressionable_root(history);
-        struct node* bracket_node = node_pop();
+        struct node *bracket_node = node_pop();
         node_create(&(struct node){.type = NODE_TYPE_BRACKET, .exp.left = bracket_node});
-        struct node* final_bracket_node = node_pop();
+        struct node *final_bracket_node = node_pop();
         vector_push(dtype->array_brackets, &final_bracket_node);
         expect_op("]");
     }
 }
 
-void parse_variable(struct datatype* dtype, struct token* name_token, struct history* history) {
+void parse_variable(struct datatype *dtype, struct token *name_token, struct history *history)
+{
     dtype->array_brackets = NULL;
-    if (token_next_is_operator("[")) {
+    if (token_next_is_operator("["))
+    {
         parse_array_brackets(history, dtype);
     }
-    struct node* value_node = NULL;
-    if (token_next_is_operator("=")) {
+
+    struct node *value_node = NULL;
+
+    if (token_next_is_operator("="))
+    {
         token_next();
         parse_expressionable_root(history);
         value_node = node_pop();
     }
+
+    if (!value_node)
+    {
+        value_node = calloc(1, sizeof(struct node));
+        assert(value_node);
+    }
+
     make_variable_node_and_register(history, dtype, name_token, value_node);
 }
 
-void parse_statement(struct history* history);
+void parse_statement(struct history *history);
 
-void parse_body(struct history* history) {
+void parse_body(struct history *history)
+{
     expect_sym('{');
-    struct vector* statements = vector_create(sizeof(struct node*));
+    struct vector *statements = vector_create(sizeof(struct node *));
     scope_new(current_process, 0);
-    while (token_peek_next()->type != TOKEN_TYPE_SYMBOL || token_peek_next()->cval != '}') {
+    while (token_peek_next()->type != TOKEN_TYPE_SYMBOL || token_peek_next()->cval != '}')
+    {
         parse_statement(history);
-        struct node* stmt_node = node_pop();
+        struct node *stmt_node = node_pop();
         vector_push(statements, &stmt_node);
     }
     expect_sym('}');
     scope_finish(current_process);
-    node_create(&(struct node){.type=NODE_TYPE_BODY, .body.statements=statements});
+    node_create(&(struct node){.type = NODE_TYPE_BODY, .body.statements = statements});
 }
 
-void parse_struct_body(struct history* history) {
+void parse_struct_body(struct history *history)
+{
     expect_sym('{');
-    struct vector* statements = vector_create(sizeof(struct node*));
+    struct vector *statements = vector_create(sizeof(struct node *));
     scope_new(current_process, 0);
-    while (token_peek_next()->type != TOKEN_TYPE_SYMBOL || token_peek_next()->cval != '}') {
+    while (token_peek_next()->type != TOKEN_TYPE_SYMBOL || token_peek_next()->cval != '}')
+    {
         parse_variable_function_or_struct_union(history);
-        struct node* stmt_node = node_pop();
+        struct node *stmt_node = node_pop();
         vector_push(statements, &stmt_node);
     }
     expect_sym('}');
     scope_finish(current_process);
-    node_create(&(struct node){.type=NODE_TYPE_BODY, .body.statements=statements});
+    node_create(&(struct node){.type = NODE_TYPE_BODY, .body.statements = statements});
 }
 
-void parse_struct(struct datatype* dtype, struct token* name_token, struct history* history) {
-    node_create(&(struct node){.type=NODE_TYPE_STRUCT, ._struct.name=name_token->sval});
-    struct node* struct_node = node_pop();
+void parse_struct(struct datatype *dtype, struct token *name_token, struct history *history)
+{
+    node_create(&(struct node){.type = NODE_TYPE_STRUCT, ._struct.name = name_token->sval});
+    struct node *struct_node = node_pop();
     symresolver_build_for_node(current_process, struct_node);
-    
+
     parse_struct_body(history);
     struct_node->_struct.body_n = node_pop();
-    
+
     node_push(struct_node);
     expect_sym(';');
 }
 
-void parse_function(struct datatype* dtype, struct token* name_token, struct history* history) {
+void parse_function(struct datatype *dtype, struct token *name_token, struct history *history)
+{
     expect_sym(')');
     parse_body(history);
-    struct node* body_node = node_pop();
-    
-    node_create(&(struct node){
-        .type=NODE_TYPE_FUNCTION, 
-        .func.name=name_token->sval, 
-        .func.rtype=*dtype,
-        .func.body_n=body_node
-    });
+    struct node *body_node = node_pop();
 
-    struct node* func_node = node_pop();
+    node_create(&(struct node){
+        .type = NODE_TYPE_FUNCTION,
+        .func.name = name_token->sval,
+        .func.rtype = *dtype,
+        .func.body_n = body_node});
+
+    struct node *func_node = node_pop();
     symresolver_build_for_node(current_process, func_node);
     node_push(func_node);
 }
 
-void parse_if_statement(struct history* history) {
+void parse_if_statement(struct history *history)
+{
     expect_op("(");
     parse_expressionable_root(history);
-    struct node* cond_node = node_pop();
+    struct node *cond_node = node_pop();
     expect_sym(')');
 
     parse_body(history);
-    struct node* body_node = node_pop();
+    struct node *body_node = node_pop();
 
-    node_create(&(struct node){.type=NODE_TYPE_STATEMENT_IF, .if_stmt.cond_node=cond_node, .if_stmt.body_node=body_node});
+    node_create(&(struct node){.type = NODE_TYPE_STATEMENT_IF, .if_stmt.cond_node = cond_node, .if_stmt.body_node = body_node});
 }
 
-void parse_return_statement(struct history* history) {
-    struct node* exp_node = NULL;
+void parse_return_statement(struct history *history)
+{
+    struct node *exp_node = NULL;
 
-    if (token_peek_next()->cval != ';') {
+    if (token_peek_next()->cval != ';')
+    {
         parse_expressionable_root(history);
         exp_node = node_pop();
     }
 
     expect_sym(';');
-    node_create(&(struct node){.type=NODE_TYPE_STATEMENT_RETURN, .ret_stmt.exp_node=exp_node});
+    node_create(&(struct node){.type = NODE_TYPE_STATEMENT_RETURN, .ret_stmt.exp_node = exp_node});
 }
 
-
-void parse_statement(struct history* history) {
-    struct token* token = token_peek_next();
-    if (token_is_keyword(token, "if")) {
+void parse_statement(struct history *history)
+{
+    struct token *token = token_peek_next();
+    if (token_is_keyword(token, "if"))
+    {
         token_next();
         parse_if_statement(history);
         return;
     }
-    if (token_is_keyword(token, "return")) {
+    if (token_is_keyword(token, "return"))
+    {
         token_next();
         parse_return_statement(history);
         return;
     }
-    
+
     parse_variable_function_or_struct_union(history);
 }
 
-void parse_variable_function_or_struct_union(struct history *history) // Analisar se funciona mesmo
+void parse_variable_function_or_struct_union(struct history *history)
 {
     struct datatype dtype;
     parse_datatype(&dtype);
 
-    if (dtype.flags & DATATYPE_FLAG_IS_STRUCT_UNION_NO_NAME) {
-        parse_struct(&dtype, parser_build_random_type_name(), history);
-        return;
-    }
-
-    struct token* name_token = token_next();
-    if (name_token->type != TOKEN_TYPE_IDENTIFIER) {
+    struct token *name_token = token_next();
+    if (name_token->type != TOKEN_TYPE_IDENTIFIER)
         compiler_error(current_process, "Declaracao invalida, nome esperado.\n");
-    }
 
-    if (token_peek_next()->type == TOKEN_TYPE_SYMBOL && token_peek_next()->cval == '(') {
+    // Funções
+    if (token_peek_next()->type == TOKEN_TYPE_OPERATOR && (strcmp(token_peek_next()->sval, "(") == 0))
+    {
         token_next();
         parse_function(&dtype, name_token, history);
         return;
     }
-    
-    if (dtype.type == DATATYPE_STRUCT && token_peek_next()->cval == '{') {
+
+    // Structs
+    if (dtype.flags & DATATYPE_FLAG_IS_STRUCT_UNION_NO_NAME)
+    {
+        parse_struct(&dtype, parser_build_random_type_name(), history);
+        return;
+    }
+    else if (dtype.type == DATATYPE_STRUCT && token_peek_next()->sval == "{")
+    {
         parse_struct(&dtype, name_token, history);
         return;
     }
-    
+
+    // Variáveis
     parse_variable(&dtype, name_token, history);
 
-    if (token_is_operator(token_peek_next(), ",")) {
-        struct vector* var_list = vector_create(sizeof(struct node*));
-        struct node* var_node = node_pop();
+    // Parse de variáveis declaradas na mesma linha
+    if (token_is_operator(token_peek_next(), ","))
+    {
+        struct vector *var_list = vector_create(sizeof(struct node *));
+        struct node *var_node = node_pop();
         vector_push(var_list, &var_node);
-        while (token_is_operator(token_peek_next(), ",")) {
+        while (token_is_operator(token_peek_next(), ","))
+        {
             token_next();
             name_token = token_next();
             parse_variable(&dtype, name_token, history);
@@ -769,7 +824,7 @@ void parse_keyword_for_global()
 {
     parse_keyword(history_begin(0));
     // TODO: Essa funcao ainda nao cria o node corretamente.
-    struct node *node = node_pop();
+    // struct node *node = node_pop();
 }
 
 int parse_next()
@@ -795,16 +850,103 @@ int parse_next()
     return 0;
 }
 
-void print_node_tree(struct node *node, int level)
+void print_node_type_expression(struct node *node, int level)
 {
-    if (node != NULL)
+    if (node)
     {
         for (int i = 0; i < level; i++)
             printf("\t");
-        printf("(NODE - LEVEL: %d)\t(OP: %s)\t(VAL: %llu)\n", level, node->exp.op != NULL ? node->exp.op : "N/A", node->llnum);
+
+        printf("+-- Expressão (Op.: %s) ", node->exp.op != NULL ? node->exp.op : "N/A");
+        printf("(+-- Valor: %llu)\n", node->llnum);
+
         int next_level = level + 1;
-        print_node_tree(node->exp.left, next_level);
-        print_node_tree(node->exp.right, next_level);
+        print_node_type_expression(node->exp.left, next_level);
+        print_node_type_expression(node->exp.right, next_level);
+    }
+}
+
+void print_node_type_variable(struct node *node)
+{
+    printf("\t+-- Declaração de Variável (NAME: %s)\n", node->var.name);
+    printf("\t\t+-- (Tipo: %s)\n", node->var.type.type_str);
+    printf("\t\t\t+--  (Valor: %p)\n", node->var.val->any);
+}
+
+void print_node_type_variable_list(struct node *node)
+{
+    static int i = 0;
+    if (i < vector_count(node->var_list.list))
+    {
+        struct node *var = *(struct node **)vector_at(node->var_list.list, i);
+        print_node_type_variable(var);
+
+        i++;
+        print_node_type_variable_list(node);
+    }
+}
+
+void print_args_function(struct node *node)
+{
+    static int i = 0;
+    if (node->func.args)
+    {
+        if (i < vector_count(node->func.args))
+        {
+            struct node *var = *(struct node **)vector_at(node->func.args, i);
+            printf("\t\t+--Parâmetros %d: (Tipo: %s) (Nome: %s) (Valor: %p)\n", i, var->var.type, var->var.name, var->var.val->any);
+
+            i++;
+            print_node_type_variable_list(node);
+        }
+    }
+    else
+    {
+        printf("\t+-- Função sem parâmetros\n");
+    }
+}
+
+void print_body_function(node)
+{ // Ainda para fazer
+    printf("\t\t\tOi\n");
+}
+
+void print_node_type_function(struct node *node)
+{
+    printf("\t+-- Função (NAME: %s) Retorno (RETURN TYPE %s):\n", node->func.name, node->func.rtype.type_str);
+    print_args_function(node);
+    print_body_function(node);
+}
+
+void print_node_tree()
+{
+    printf("\n=== Árvore de Nós (AST) ===\n");
+    printf("+-- Unidade de Compilação\n");
+
+    for (int i = 0; i < vector_count(current_process->node_tree_vec); i++)
+    {
+        struct node *node = *(struct node **)vector_at(current_process->node_tree_vec, i);
+
+        if (node != NULL)
+        {
+            switch (node->type)
+            {
+            case NODE_TYPE_VARIABLE_LIST:
+                print_node_type_variable_list(node);
+                break;
+            case NODE_TYPE_VARIABLE:
+                print_node_type_variable(node);
+                break;
+            case NODE_TYPE_EXPRESSION:
+                print_node_type_expression(node, 1);
+                break;
+            case NODE_TYPE_FUNCTION:
+                print_node_type_function(node);
+
+            default:
+                break;
+            }
+        }
     }
 }
 
@@ -827,11 +969,7 @@ int parse(struct compile_process *process)
     }
 
     // Impressão da árvore sintática (AST)
-    for (int i = 0; i < vector_count(process->node_tree_vec); i++)
-    {
-        struct node *n = *(struct node **)vector_at(process->node_tree_vec, i);
-        print_node_tree(n, 0);
-    }
+    print_node_tree();
 
     return PARSE_ALL_OK;
 }

@@ -1,5 +1,6 @@
 #include "compiler.h"
 #include "helpers/vector.h"
+#include <assert.h>
 
 static void symresolver_push_symbol(struct compile_process *process, struct symbol *sym)
 {
@@ -9,6 +10,7 @@ static void symresolver_push_symbol(struct compile_process *process, struct symb
 void symresolver_initialize(struct compile_process *process)
 {
     process->symbols.tables = vector_create(sizeof(struct vector *));
+    process->symbols.table = vector_create(sizeof(struct vector *));
 }
 
 void symresolver_new_table(struct compile_process *process)
@@ -55,10 +57,15 @@ struct symbol *symresolver_get_symbol_for_native_function(struct compile_process
 
 struct symbol *symresolver_register_symbol(struct compile_process *process, const char *sym_name, int type, void *data)
 {
-    if (symresolver_get_symbol(process, sym_name))
-        return NULL;
+    if (process->symbols.table) 
+    {
+        if (symresolver_get_symbol(process, sym_name))
+            return NULL;
+    }
 
     struct symbol *sym = calloc(1, sizeof(struct symbol));
+    assert(sym);
+
     sym->name = sym_name;
     sym->type = type;
     sym->data = data;
@@ -76,22 +83,26 @@ struct node *symresolver_node(struct symbol *sym)
 
 void symresolver_build_for_variable_node(struct compile_process *process, struct node *node)
 {
-    compiler_error(process, "Variables not yet supported\n");
+    assert(node->type == NODE_TYPE_VARIABLE);
+    symresolver_register_symbol(process, node->var.name, SYMBOL_TYPE_NODE, node->var.val->any);
+    scope_push(process, node, node->var.type.size);
 }
 
 void symresolver_build_for_function_node(struct compile_process *process, struct node *node)
 {
-    compiler_error(process, "Functions are not yet supported\n");
+    assert(node->type == NODE_TYPE_FUNCTION);
+    symresolver_register_symbol(process, node->func.name, SYMBOL_TYPE_NODE, node);
 }
 
 void symresolver_build_for_structure_node(struct compile_process *process, struct node *node)
 {
-    compiler_error(process, "Structures are not yet supported\n");
+    assert(node->type == NODE_TYPE_STRUCT);
+    symresolver_register_symbol(process, node->_struct.name, SYMBOL_TYPE_NODE, node);
 }
 
 void symresolver_build_for_union_node(struct compile_process *process, struct node *node)
 {
-    compiler_error(process, "Unions are not yet supported\n");
+    
 }
 
 void symresolver_build_for_node(struct compile_process *process, struct node *node)
