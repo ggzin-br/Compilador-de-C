@@ -48,6 +48,7 @@ int compile_file(const char *filename, const char *out_finename, int flags)
         return COMPILER_FAILED_WITH_ERRORS;
 
     /* AQUI ENTRA A GERACAO DE CODIGO */
+    //
 
     lex_process_free(lex_process);
     compile_process_free(process);
