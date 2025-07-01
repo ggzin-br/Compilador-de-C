@@ -142,14 +142,6 @@ static void parser_ignore_nl_or_comment(struct token *token)
     }
 }
 
-static struct token *token_copy()
-{
-    struct token *token = malloc(sizeof(struct token));
-    memcpy(token, (struct token *)current_process->token_vec, sizeof(struct token));
-
-    return token;
-}
-
 static struct token *token_next()
 {
     struct token *next_token = (struct token *)vector_peek_no_increment(current_process->token_vec);
@@ -225,11 +217,6 @@ static void expect_sym(char c)
     {
         compiler_error(current_process, "Esperado o simbolo %c, mas outra coisa foi fornecida", c);
     }
-}
-
-void parser_get_datatype_tokens_structs_unions(struct token **datatype_token, struct token **datatype_secundary_token)
-{
-    struct token *token_vec_copy = token_copy();
 }
 
 void parser_get_datatype_tokens(struct token **datatype_token, struct token **datatype_secundary_token)
@@ -481,6 +468,7 @@ void parser_datatype_init_type_and_size_for_primitive(struct token *datatype_tok
 
 void parser_datatype_init_type_and_size_struct_union(struct token *datatype_token, struct token *datatype_secondary_token, struct datatype *datatype_out)
 {
+    // Não sei fazer esta parte
 }
 
 void parser_datatype_init_type_and_size(struct token *datatype_token, struct token *datatype_secondary_token, struct datatype *datatype_out, int pointer_depth, int expected_type)
@@ -850,106 +838,6 @@ int parse_next()
     return 0;
 }
 
-void print_node_type_expression(struct node *node, int level)
-{
-    if (node)
-    {
-        for (int i = 0; i < level; i++)
-            printf("\t");
-
-        printf("+-- Expressão (Op.: %s) ", node->exp.op != NULL ? node->exp.op : "N/A");
-        printf("(+-- Valor: %llu)\n", node->llnum);
-
-        int next_level = level + 1;
-        print_node_type_expression(node->exp.left, next_level);
-        print_node_type_expression(node->exp.right, next_level);
-    }
-}
-
-void print_node_type_variable(struct node *node)
-{
-    printf("\t+-- Declaração de Variável (NAME: %s)\n", node->var.name);
-    printf("\t\t+-- (Tipo: %s)\n", node->var.type.type_str);
-    printf("\t\t\t+--  (Valor: %p)\n", node->var.val->any);
-}
-
-void print_node_type_variable_list(struct node *node)
-{
-    static int i = 0;
-    if (i < vector_count(node->var_list.list))
-    {
-        struct node *var = *(struct node **)vector_at(node->var_list.list, i);
-        print_node_type_variable(var);
-
-        i++;
-        print_node_type_variable_list(node);
-    }
-}
-
-void print_args_function(struct node *node)
-{
-    static int i = 0;
-    if (node->func.args)
-    {
-        if (i < vector_count(node->func.args))
-        {
-            struct node *var = *(struct node **)vector_at(node->func.args, i);
-            printf("\t\t+--Parâmetros %d: (Tipo: %s) (Nome: %s) (Valor: %p)\n", i, var->var.type, var->var.name, var->var.val->any);
-
-            i++;
-            print_node_type_variable_list(node);
-        }
-    }
-    else
-    {
-        printf("\t+-- Função sem parâmetros\n");
-    }
-}
-
-void print_body_function(node)
-{ // Ainda para fazer
-    printf("\t\t\tOi\n");
-}
-
-void print_node_type_function(struct node *node)
-{
-    printf("\t+-- Função (NAME: %s) Retorno (RETURN TYPE %s):\n", node->func.name, node->func.rtype.type_str);
-    print_args_function(node);
-    print_body_function(node);
-}
-
-void print_node_tree()
-{
-    printf("\n=== Árvore de Nós (AST) ===\n");
-    printf("+-- Unidade de Compilação\n");
-
-    for (int i = 0; i < vector_count(current_process->node_tree_vec); i++)
-    {
-        struct node *node = *(struct node **)vector_at(current_process->node_tree_vec, i);
-
-        if (node != NULL)
-        {
-            switch (node->type)
-            {
-            case NODE_TYPE_VARIABLE_LIST:
-                print_node_type_variable_list(node);
-                break;
-            case NODE_TYPE_VARIABLE:
-                print_node_type_variable(node);
-                break;
-            case NODE_TYPE_EXPRESSION:
-                print_node_type_expression(node, 1);
-                break;
-            case NODE_TYPE_FUNCTION:
-                print_node_type_function(node);
-
-            default:
-                break;
-            }
-        }
-    }
-}
-
 int parse(struct compile_process *process)
 {
     current_process = process;
@@ -967,9 +855,6 @@ int parse(struct compile_process *process)
         if (node)
             vector_push(process->node_tree_vec, &node);
     }
-
-    // Impressão da árvore sintática (AST)
-    print_node_tree();
 
     return PARSE_ALL_OK;
 }

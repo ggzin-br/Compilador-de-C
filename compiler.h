@@ -265,8 +265,8 @@ struct compile_process
         const char *abs_path;
     } cfile;
 
-    struct vector *token_vec;     
-    struct vector *node_vec;      
+    struct vector *token_vec;
+    struct vector *node_vec;
     struct vector *node_tree_vec;
 
     FILE *ofile;
@@ -315,7 +315,7 @@ struct datatype
         struct node *union_node;
     };
 
-    struct vector* array_brackets;
+    struct vector *array_brackets;
 };
 
 struct node
@@ -359,35 +359,41 @@ struct node
             const char *name;
             struct node *val;
         } var;
-        struct var_list {
-            struct vector* list;
+        struct var_list
+        {
+            struct vector *list;
         } var_list;
 
-        struct _struct {
-            const char* name;
-            struct node* body_n;
+        struct _struct
+        {
+            const char *name;
+            struct node *body_n;
         } _struct;
 
-        struct func {
-            const char* name;
-            struct node* body_n;
+        struct func
+        {
+            const char *name;
+            struct node *body_n;
             struct datatype rtype;
-            struct vector* args;
+            struct vector *args;
         } func;
-        
-        struct body {
-            struct vector* statements;
+
+        struct body
+        {
+            struct vector *statements;
             size_t size;
         } body;
 
-        struct if_stmt {
-            struct node* cond_node;
-            struct node* body_node;
-            struct node* next; // para else if
+        struct if_stmt
+        {
+            struct node *cond_node;
+            struct node *body_node;
+            struct node *next; // para else if
         } if_stmt;
 
-        struct ret_stmt {
-            struct node* exp_node;
+        struct ret_stmt
+        {
+            struct node *exp_node;
         } ret_stmt;
     };
 };
@@ -396,7 +402,7 @@ struct node
 
 /* FUNCOES DO ARQUIVO CPROCESS.C */
 struct compile_process *compile_process_create(const char *filename, const char *filename_out, int flags);
-void compile_process_free(struct compile_process* process);
+void compile_process_free(struct compile_process *process);
 char compile_process_next_char(struct lex_process *lex_process);
 char compile_process_peek_char(struct lex_process *lex_process);
 void compile_process_push_char(struct lex_process *lex_process, char c);

@@ -57,7 +57,7 @@ struct symbol *symresolver_get_symbol_for_native_function(struct compile_process
 
 struct symbol *symresolver_register_symbol(struct compile_process *process, const char *sym_name, int type, void *data)
 {
-    if (process->symbols.table) 
+    if (process->symbols.table)
     {
         if (symresolver_get_symbol(process, sym_name))
             return NULL;
@@ -102,7 +102,6 @@ void symresolver_build_for_structure_node(struct compile_process *process, struc
 
 void symresolver_build_for_union_node(struct compile_process *process, struct node *node)
 {
-    
 }
 
 void symresolver_build_for_node(struct compile_process *process, struct node *node)
